@@ -133,7 +133,7 @@ int jawboneGetV6SocketName(
 {
     struct sockaddr_in6 sa;
     SOCKET s;
-    int nameLen = sizeof sa;
+    socklen_t nameLen = sizeof sa;
     memcpy(&s, inSocket, sizeof s);
     memset(&sa, 0, sizeof sa);
 
