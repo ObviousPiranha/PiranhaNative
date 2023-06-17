@@ -4,7 +4,13 @@ endif
 
 CFLAGS += -shared -fPIC -O3 -DNDEBUG
 TARGET = PiranhaNative.dll
-SOURCE = piranha.c piranha-stb.c stb_vorbis.c piranha-sqlite3.c 
+
+# This is an option to avoid compiling all the other components.
+# It is only used for rapid development of networking code.
+# https://www.gnu.org/software/make/manual/html_node/Conditional-Example.html
+ifndef JAWBONE_NET_ONLY
+	SOURCE = piranha.c piranha-stb.c stb_vorbis.c piranha-sqlite3.c
+endif
 
 ifeq ($(OS),Windows_NT)
 	SOURCE += net/piranha-net-windows.c

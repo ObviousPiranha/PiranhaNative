@@ -9,9 +9,23 @@
 #include <poll.h>
 #include "piranha-net.h"
 
-#define SOCKET int
-#define INVALID_SOCKET -1
-#define closesocket close
+// https://man7.org/linux/man-pages/man7/ip.7.html
+// https://man7.org/linux/man-pages/man7/ipv6.7.html
+
+static int getSocket(const void* p)
+{
+    return *(const int *)p;
+}
+
+static void setSocket(void* p, int s)
+{
+    *(int *)p = s;
+}
+
+int jawboneGetVersion()
+{
+    return 1;
+}
 
 int jawboneStartNetworking()
 {
@@ -29,16 +43,15 @@ void jawboneCreateAndBindUdpV4Socket(
     int *outSocketError,
     int *outBindError)
 {
+    *outSocketError = 0;
+    *outBindError = 0;
+
     struct sockaddr_in sa;
-    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    int socketError = s == INVALID_SOCKET ? errno : 0;
+    int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-    *outSocketError = socketError;
-
-    if (socketError)
+    if (s == -1)
     {
-        *outBindError = 0;
-        memcpy(outSocket, &s, sizeof s);
+        *outSocketError = errno;
         return;
     }
 
@@ -48,34 +61,49 @@ void jawboneCreateAndBindUdpV4Socket(
     sa.sin_addr.s_addr = address;
 
     // // https://man7.org/linux/man-pages/man2/bind.2.html
-    int bindError = bind(s, (struct sockaddr *)&sa, sizeof sa);
-    *outBindError = bindError == -1 ? errno : 0;
+    int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
 
-    if (bindError)
+    if (bindResult == -1)
     {
-        closesocket(s);
-        s = INVALID_SOCKET;
+        close(s);
+        *outBindError = errno;
+        return;
     }
 
-    memcpy(outSocket, &s, sizeof s);
+    setSocket(outSocket, s);
 }
 
 void jawboneCreateAndBindUdpV6Socket(
     const void *inAddress,
     unsigned short port,
+    int allowV4,
     void *outSocket,
     int *outSocketError,
+    int *outSetSocketOptionError,
     int *outBindError)
 {
-    SOCKET s = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
-    int socketError = s == INVALID_SOCKET ? errno : 0;
+    *outSocketError = 0;
+    *outSetSocketOptionError = 0;
+    *outBindError = 0;
 
-    *outSocketError = socketError;
+    int s = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 
-    if (socketError)
+    if (s == -1)
     {
-        *outBindError = 0;
-        memcpy(outSocket, &s, sizeof s);
+        *outSocketError = errno;
+        return;
+    }
+
+    // https://man7.org/linux/man-pages/man3/setsockopt.3p.html
+    // https://man7.org/linux/man-pages/man7/ipv6.7.html
+    int yes = !allowV4;
+    int setSocketOptionError = setsockopt(
+        s, IPPROTO_IPV6, IPV6_V6ONLY, &yes, sizeof(yes));
+
+    if (setSocketOptionError == -1)
+    {
+        *outSetSocketOptionError = errno;
+        close(s);
         return;
     }
 
@@ -86,16 +114,16 @@ void jawboneCreateAndBindUdpV6Socket(
     sa.sin6_port = port;
 
     // https://man7.org/linux/man-pages/man2/bind.2.html
-    int bindError = bind(s, (struct sockaddr *)&sa, sizeof sa);
-    *outBindError = bindError == -1 ? errno : 0;
+    int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
 
-    if (bindError)
+    if (bindResult == -1)
     {
-        closesocket(s);
-        s = INVALID_SOCKET;
+        close(s);
+        *outBindError = errno;
+        return;
     }
 
-    memcpy(outSocket, &s, sizeof s);
+    setSocket(outSocket, s);
 }
 
 int jawboneGetV4SocketName(
@@ -104,9 +132,8 @@ int jawboneGetV4SocketName(
     unsigned short* outPort)
 {
     struct sockaddr_in sa;
-    SOCKET s;
+    int s = getSocket(inSocket);
     socklen_t nameLen = sizeof sa;
-    memcpy(&s, inSocket, sizeof s);
     memset(&sa, 0, sizeof sa);
 
     // https://man7.org/linux/man-pages/man2/getsockname.2.html
@@ -132,9 +159,8 @@ int jawboneGetV6SocketName(
     unsigned short* outPort)
 {
     struct sockaddr_in6 sa;
-    SOCKET s;
+    int s = getSocket(inSocket);
     socklen_t nameLen = sizeof sa;
-    memcpy(&s, inSocket, sizeof s);
     memset(&sa, 0, sizeof sa);
 
     // https://man7.org/linux/man-pages/man2/getsockname.2.html
@@ -163,8 +189,7 @@ int jawboneSendToV4(
     int *outErrorCode)
 {
     struct sockaddr_in sa;
-    SOCKET s;
-    memcpy(&s, inSocket, sizeof s);
+    int s = getSocket(inSocket);
     memset(&sa, 0, sizeof sa);
     sa.sin_family = AF_INET;
     sa.sin_port = port;
@@ -178,7 +203,7 @@ int jawboneSendToV4(
         0,
         (const struct sockaddr *)&sa,
         sizeof sa);
-    
+
     *outErrorCode = sendResult == -1 ? errno : 0;
     return sendResult;
 }
@@ -192,8 +217,7 @@ int jawboneSendToV6(
     int *outErrorCode)
 {
     struct sockaddr_in6 sa;
-    SOCKET s;
-    memcpy(&s, inSocket, sizeof s);
+    int s = getSocket(inSocket);
     memset(&sa, 0, sizeof sa);
     sa.sin6_family = AF_INET6;
     sa.sin6_port = port;
@@ -207,7 +231,7 @@ int jawboneSendToV6(
         0,
         (const struct sockaddr *)&sa,
         sizeof sa);
-    
+
     *outErrorCode = sendResult == -1 ? errno : 0;
     return sendResult;
 }
@@ -223,8 +247,7 @@ int jawboneReceiveFromV4(
 {
     struct sockaddr_in sa;
     socklen_t addressLength = sizeof sa;
-    SOCKET s;
-    memcpy(&s, inSocket, sizeof s);
+    int s = getSocket(inSocket);
 
     struct pollfd pfd;
     memset(&pfd, 0, sizeof pfd);
@@ -244,7 +267,7 @@ int jawboneReceiveFromV4(
                 0,
                 (struct sockaddr *)&sa,
                 &addressLength);
-            
+
             *outAddress = sa.sin_addr.s_addr;
             *outPort = sa.sin_port;
             *outErrorCode = result == -1 ? errno : 0;
@@ -287,8 +310,7 @@ int jawboneReceiveFromV6(
 {
     struct sockaddr_in6 sa;
     socklen_t addressLength = sizeof sa;
-    SOCKET s;
-    memcpy(&s, inSocket, sizeof s);
+    int s = getSocket(inSocket);
 
     struct pollfd pfd;
     memset(&pfd, 0, sizeof pfd);
@@ -308,11 +330,11 @@ int jawboneReceiveFromV6(
                 0,
                 (struct sockaddr *)&sa,
                 &addressLength);
-            
+
             memcpy(outAddress, &sa.sin6_addr, 16);
             *outPort = sa.sin6_port;
             *outErrorCode = result == -1 ? errno : 0;
-            
+
             return result;
         }
         else
@@ -343,29 +365,27 @@ int jawboneReceiveFromV6(
 
 int jawboneShutdownSocket(const void *targetSocket)
 {
-    SOCKET s;
-    memcpy(&s, targetSocket, sizeof s);
+    int s = getSocket(targetSocket);
     return shutdown(s, SHUT_RDWR) == -1 ? errno : 0;
 }
 
 int jawboneCloseSocket(const void *closingSocket)
 {
-    SOCKET s;
-    memcpy(&s, closingSocket, sizeof s);
-    return closesocket(s) == -1 ? errno : 0;
+    int s = getSocket(closingSocket);
+    return close(s) == -1 ? errno : 0;
 }
 
 int jawboneGetAddressInfo(
     const char *node,
     const char *service,
-    void* outV4Results,
+    void *outV4Results,
     int sizeV4,
     int capacityV4,
-    int* outCountV4,
-    void* outV6Results,
+    int *outCountV4,
+    void *outV6Results,
     int sizeV6,
     int capacityV6,
-    int* outCountV6)
+    int *outCountV6)
 {
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -382,7 +402,7 @@ int jawboneGetAddressInfo(
     {
         hints.ai_family = AF_INET6;
     }
-    
+
     struct addrinfo *result;
     // https://man7.org/linux/man-pages/man3/gai_strerror.3.html
     int getResult = getaddrinfo(node, service, &hints, &result);
@@ -393,7 +413,7 @@ int jawboneGetAddressInfo(
     int countV6 = 0;
     char *currentV4 = (char *)outV4Results;
     char *currentV6 = (char *)outV6Results;
-    
+
     for (struct addrinfo *ai = result; ai; ai = ai->ai_next)
     {
         if (ai->ai_family == AF_INET)

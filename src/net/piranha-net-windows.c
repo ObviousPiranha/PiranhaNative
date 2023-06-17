@@ -12,6 +12,11 @@ static WSADATA theWsaData;
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsagetlasterror
 
+int jawboneGetVersion()
+{
+    return 1;
+}
+
 int jawboneStartNetworking()
 {
     // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsastartup
@@ -65,8 +70,10 @@ void jawboneCreateAndBindUdpV4Socket(
 void jawboneCreateAndBindUdpV6Socket(
     const void *inAddress,
     unsigned short port,
+    int allowV4,
     void *outSocket,
     int *outSocketError,
+    int *outSetSocketOptionError,
     int *outBindError)
 {
     // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket
@@ -77,8 +84,21 @@ void jawboneCreateAndBindUdpV6Socket(
 
     if (socketError)
     {
+        *outSetSocketOptionError = 0;
         *outBindError = 0;
         memcpy(outSocket, &s, sizeof s);
+        return;
+    }
+
+    DWORD yes = !allowV4;
+    int setSocketOptionError = setsockopt(
+        s, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&yes, sizeof(yes));
+
+    if (setSocketOptionError == SOCKET_ERROR)
+    {
+        *outSetSocketOptionError = WSAGetLastError();
+        *outBindError = 0;
+        closesocket(s);
         return;
     }
 
@@ -181,7 +201,7 @@ int jawboneSendToV4(
         0,
         (const struct sockaddr *)&sa,
         sizeof sa);
-    
+
     *outErrorCode = sendResult == -1 ? WSAGetLastError() : 0;
     return sendResult;
 }
@@ -210,7 +230,7 @@ int jawboneSendToV6(
         0,
         (const struct sockaddr *)&sa,
         sizeof sa);
-    
+
     *outErrorCode = sendResult == -1 ? WSAGetLastError() : 0;
     return sendResult;
 }
@@ -248,11 +268,11 @@ int jawboneReceiveFromV4(
                 0,
                 (struct sockaddr *)&sa,
                 &addressLength);
-            
+
             *outAddress = sa.sin_addr.s_addr;
             *outPort = sa.sin_port;
             *outErrorCode = result == -1 ? WSAGetLastError() : 0;
-            
+
             return result;
         }
         else
@@ -314,11 +334,11 @@ int jawboneReceiveFromV6(
                 0,
                 (struct sockaddr *)&sa,
                 &addressLength);
-            
+
             memcpy(outAddress, &sa.sin6_addr, 16);
             *outPort = sa.sin6_port;
             *outErrorCode = result == -1 ? WSAGetLastError() : 0;
-            
+
             return result;
         }
         else
@@ -388,7 +408,7 @@ int jawboneGetAddressInfo(
     {
         hints.ai_family = AF_INET6;
     }
-    
+
     struct addrinfo *result;
     // https://docs.microsoft.com/en-us/windows/win32/api/ws2tcpip/nf-ws2tcpip-getaddrinfo
     int getResult = getaddrinfo(node, service, &hints, &result);
@@ -399,7 +419,7 @@ int jawboneGetAddressInfo(
     int countV6 = 0;
     char *currentV4 = (char *)outV4Results;
     char *currentV6 = (char *)outV6Results;
-    
+
     // https://docs.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-addrinfoa
     for (struct addrinfo *ai = result; ai; ai = ai->ai_next)
     {

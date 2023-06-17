@@ -1,6 +1,7 @@
 #ifndef PIRANHA_NET_H
 #define PIRANHA_NET_H
 
+int jawboneGetVersion();
 int jawboneStartNetworking();
 void jawboneStopNetworking();
 void jawboneCreateAndBindUdpV4Socket(
@@ -12,8 +13,10 @@ void jawboneCreateAndBindUdpV4Socket(
 void jawboneCreateAndBindUdpV6Socket(
     const void *inAddress,
     unsigned short port,
+    int allowV4,
     void *outSocket,
     int *outSocketError,
+    int *outSetSocketOptionError,
     int *outBindError);
 int jawboneGetV4SocketName(
     const void *inSocket,
@@ -58,13 +61,13 @@ int jawboneCloseSocket(const void *closingSocket);
 int jawboneGetAddressInfo(
     const char *node,
     const char *service,
-    void* outV4Results,
+    void *outV4Results,
     int sizeV4,
     int capacityV4,
-    int* outCountV4,
-    void* outV6Results,
+    int *outCountV4,
+    void *outV6Results,
     int sizeV6,
     int capacityV6,
-    int* outCountV6);
+    int *outCountV6);
 
 #endif

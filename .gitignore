@@ -2,3 +2,7 @@
 *.dll
 *.so
 *.dylib
+*.zip
+*.7z
+
+.vscode/
