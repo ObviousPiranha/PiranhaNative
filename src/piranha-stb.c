@@ -1,7 +1,7 @@
 #ifdef JawboneWindows
 #define STBIDEF __declspec(dllexport)
 #define STBIWDEF __declspec(dllexport)
-#define STBTT_DEF __declspec(dllexport)
+//#define STBTT_DEF __declspec(dllexport)
 #endif
 
 #define STB_TRUETYPE_IMPLEMENTATION

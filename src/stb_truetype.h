@@ -502,7 +502,7 @@ int main(int arg, char **argv)
 #ifdef STBTT_STATIC
 #define STBTT_DEF static
 #else
-#define STBTT_DEF extern
+#define STBTT_DEF __declspec(dllexport)
 #endif
 
 #ifdef __cplusplus
