@@ -24,7 +24,7 @@ static void setSocket(void* p, int s)
 
 int jawboneGetVersion()
 {
-    return 1;
+    return 2;
 }
 
 int jawboneStartNetworking()
@@ -39,6 +39,7 @@ void jawboneStopNetworking()
 void jawboneCreateAndBindUdpV4Socket(
     unsigned int address,
     unsigned short port,
+    int flags,
     void *outSocket,
     int *outSocketError,
     int *outBindError)
@@ -55,19 +56,22 @@ void jawboneCreateAndBindUdpV4Socket(
         return;
     }
 
-    memset(&sa, 0, sizeof sa);
-    sa.sin_family = AF_INET;
-    sa.sin_port = port;
-    sa.sin_addr.s_addr = address;
-
-    // // https://man7.org/linux/man-pages/man2/bind.2.html
-    int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
-
-    if (bindResult == -1)
+    if (flags & JawboneFlagBind)
     {
-        close(s);
-        *outBindError = errno;
-        return;
+        memset(&sa, 0, sizeof sa);
+        sa.sin_family = AF_INET;
+        sa.sin_port = port;
+        sa.sin_addr.s_addr = address;
+
+        // https://man7.org/linux/man-pages/man2/bind.2.html
+        int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
+
+        if (bindResult == -1)
+        {
+            close(s);
+            *outBindError = errno;
+            return;
+        }
     }
 
     setSocket(outSocket, s);
@@ -76,7 +80,7 @@ void jawboneCreateAndBindUdpV4Socket(
 void jawboneCreateAndBindUdpV6Socket(
     const void *inAddress,
     unsigned short port,
-    int allowV4,
+    int flags,
     void *outSocket,
     int *outSocketError,
     int *outSetSocketOptionError,
@@ -96,7 +100,7 @@ void jawboneCreateAndBindUdpV6Socket(
 
     // https://man7.org/linux/man-pages/man3/setsockopt.3p.html
     // https://man7.org/linux/man-pages/man7/ipv6.7.html
-    int yes = !allowV4;
+    int yes = !!(flags & JawboneFlagIpV6Only);
     int setSocketOptionError = setsockopt(
         s, IPPROTO_IPV6, IPV6_V6ONLY, &yes, sizeof(yes));
 
@@ -107,20 +111,23 @@ void jawboneCreateAndBindUdpV6Socket(
         return;
     }
 
-    struct sockaddr_in6 sa;
-    memset(&sa, 0, sizeof sa);
-    memcpy(&sa.sin6_addr, inAddress, 16);
-    sa.sin6_family = AF_INET6;
-    sa.sin6_port = port;
-
-    // https://man7.org/linux/man-pages/man2/bind.2.html
-    int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
-
-    if (bindResult == -1)
+    if (flags & JawboneFlagBind)
     {
-        close(s);
-        *outBindError = errno;
-        return;
+        struct sockaddr_in6 sa;
+        memset(&sa, 0, sizeof sa);
+        memcpy(&sa.sin6_addr, inAddress, 16);
+        sa.sin6_family = AF_INET6;
+        sa.sin6_port = port;
+
+        // https://man7.org/linux/man-pages/man2/bind.2.html
+        int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
+
+        if (bindResult == -1)
+        {
+            close(s);
+            *outBindError = errno;
+            return;
+        }
     }
 
     setSocket(outSocket, s);

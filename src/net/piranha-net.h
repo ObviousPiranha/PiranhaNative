@@ -1,46 +1,57 @@
 #ifndef PIRANHA_NET_H
 #define PIRANHA_NET_H
 
-int jawboneGetVersion();
-int jawboneStartNetworking();
-void jawboneStopNetworking();
-void jawboneCreateAndBindUdpV4Socket(
+#ifdef JawboneWindows
+#define JawboneExport __declspec(dllexport)
+#else
+#define JawboneExport
+#endif
+
+#define JawboneFlagReuse 1
+#define JawboneFlagBind 2
+#define JawboneFlagIpV6Only 4
+
+JawboneExport int jawboneGetVersion();
+JawboneExport int jawboneStartNetworking();
+JawboneExport void jawboneStopNetworking();
+JawboneExport void jawboneCreateAndBindUdpV4Socket(
     unsigned int address,
     unsigned short port,
+    int flags,
     void *outSocket,
     int *outSocketError,
     int *outBindError);
-void jawboneCreateAndBindUdpV6Socket(
+JawboneExport void jawboneCreateAndBindUdpV6Socket(
     const void *inAddress,
     unsigned short port,
-    int allowV4,
+    int flags,
     void *outSocket,
     int *outSocketError,
     int *outSetSocketOptionError,
     int *outBindError);
-int jawboneGetV4SocketName(
+JawboneExport int jawboneGetV4SocketName(
     const void *inSocket,
     unsigned int *outAddress,
     unsigned short *outPort);
-int jawboneGetV6SocketName(
+JawboneExport int jawboneGetV6SocketName(
     const void *inSocket,
     void *outAddress,
     unsigned short* outPort);
-int jawboneSendToV4(
+JawboneExport int jawboneSendToV4(
     const void *inSocket,
     const void *inBuffer,
     int bufferLength,
     unsigned int address,
     unsigned short port,
     int *outErrorCode);
-int jawboneSendToV6(
+JawboneExport int jawboneSendToV6(
     const void *inSocket,
     const void *inBuffer,
     int bufferLength,
     const void *inAddress,
     unsigned short port,
     int *outErrorCode);
-int jawboneReceiveFromV4(
+JawboneExport int jawboneReceiveFromV4(
     const void *inSocket,
     void *outBuffer,
     int bufferLength,
@@ -48,7 +59,7 @@ int jawboneReceiveFromV4(
     unsigned short *outPort,
     int *outErrorCode,
     int milliseconds);
-int jawboneReceiveFromV6(
+JawboneExport int jawboneReceiveFromV6(
     const void *inSocket,
     void *outBuffer,
     int bufferLength,
@@ -56,9 +67,9 @@ int jawboneReceiveFromV6(
     unsigned short *outPort,
     int *outErrorCode,
     int milliseconds);
-int jawboneShutdownSocket(const void *targetSocket);
-int jawboneCloseSocket(const void *closingSocket);
-int jawboneGetAddressInfo(
+JawboneExport int jawboneShutdownSocket(const void *targetSocket);
+JawboneExport int jawboneCloseSocket(const void *closingSocket);
+JawboneExport int jawboneGetAddressInfo(
     const char *node,
     const char *service,
     void *outV4Results,

@@ -1,5 +1,8 @@
 *.exe
 *.dll
+*.obj
+*.exp
+*.lib
 *.so
 *.dylib
 *.zip

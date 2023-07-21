@@ -2,6 +2,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#include <stdio.h>
 #include <string.h>
 #include <windows.h>
 #include <winsock2.h>
@@ -10,11 +11,21 @@
 
 static WSADATA theWsaData;
 
+static SOCKET getSocket(const void* p)
+{
+    return *(const SOCKET *)p;
+}
+
+static void setSocket(void* p, SOCKET s)
+{
+    *(SOCKET *)p = s;
+}
+
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsagetlasterror
 
 int jawboneGetVersion()
 {
-    return 1;
+    return 2;
 }
 
 int jawboneStartNetworking()
@@ -29,97 +40,121 @@ void jawboneStopNetworking()
     WSACleanup();
 }
 
+static void DumpToFile(const char *text)
+{
+    FILE *file = fopen("net-log.txt", "a");
+    fprintf(file, text);
+    fclose(file);
+}
+
 void jawboneCreateAndBindUdpV4Socket(
     unsigned int address,
     unsigned short port,
+    int flags,
     void *outSocket,
     int *outSocketError,
     int *outBindError)
 {
+    *outSocketError = 0;
+    *outBindError = 0;
+
     // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket
     SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    int socketError = s == INVALID_SOCKET ? WSAGetLastError() : 0;
 
-    *outSocketError = socketError;
-
-    if (socketError)
+    if (s == INVALID_SOCKET)
     {
-        *outBindError = 0;
-        memcpy(outSocket, &s, sizeof s);
+        *outSocketError = WSAGetLastError();
+        setSocket(outSocket, s);
         return;
     }
 
-    struct sockaddr_in sa;
-    memset(&sa, 0, sizeof sa);
-    sa.sin_family = AF_INET;
-    sa.sin_port = port;
-    sa.sin_addr.s_addr = address;
-
-    int bindError = bind(s, (struct sockaddr *)&sa, sizeof sa);
-    *outBindError = bindError == -1 ? WSAGetLastError() : 0;
-
-    if (bindError)
     {
-        closesocket(s);
-        s = INVALID_SOCKET;
+        BOOL yes = FALSE;
+        //int setSocketOptionError =
+        setsockopt(
+            s, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
+        // TODO: Report error like v6 version.
     }
 
-    memcpy(outSocket, &s, sizeof s);
+    if (flags & JawboneFlagBind)
+    {
+        struct sockaddr_in sa;
+        memset(&sa, 0, sizeof sa);
+        sa.sin_family = AF_INET;
+        sa.sin_port = port;
+        sa.sin_addr.s_addr = address;
+
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-bind
+        int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
+
+        if (bindResult == SOCKET_ERROR)
+        {
+            closesocket(s);
+            *outBindError = WSAGetLastError();
+            s = INVALID_SOCKET;
+        }
+    }
+
+    setSocket(outSocket, s);
 }
 
 void jawboneCreateAndBindUdpV6Socket(
     const void *inAddress,
     unsigned short port,
-    int allowV4,
+    int flags,
     void *outSocket,
     int *outSocketError,
     int *outSetSocketOptionError,
     int *outBindError)
 {
+    *outSocketError = 0;
+    *outSetSocketOptionError = 0;
+    *outBindError = 0;
+
     // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket
     SOCKET s = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
-    int socketError = s == INVALID_SOCKET ? WSAGetLastError() : 0;
 
-    *outSocketError = socketError;
-
-    if (socketError)
+    if (s == INVALID_SOCKET)
     {
-        *outSetSocketOptionError = 0;
-        *outBindError = 0;
-        memcpy(outSocket, &s, sizeof s);
+        *outSocketError = WSAGetLastError();
+        setSocket(outSocket, s);
         return;
     }
 
-    DWORD yes = !allowV4;
+    // https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-setsockopt
+    // https://learn.microsoft.com/en-us/windows/win32/winsock/ipproto-ipv6-socket-options
+    DWORD yes = !!(flags & JawboneFlagIpV6Only);
     int setSocketOptionError = setsockopt(
         s, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&yes, sizeof(yes));
 
     if (setSocketOptionError == SOCKET_ERROR)
     {
         *outSetSocketOptionError = WSAGetLastError();
-        *outBindError = 0;
         closesocket(s);
         return;
     }
 
-    struct sockaddr_in6 sa;
-    memset(&sa, 0, sizeof sa);
-    memcpy(&sa.sin6_addr, inAddress, 16);
-    sa.sin6_family = AF_INET6;
-    sa.sin6_port = port;
-
-    // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-bind
-    int bindError = bind(s, (struct sockaddr *)&sa, sizeof sa);
-    *outBindError = bindError == -1 ? WSAGetLastError() : 0;
-
-    if (bindError)
+    if (flags & JawboneFlagBind)
     {
-        // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-closesocket
-        closesocket(s);
-        s = INVALID_SOCKET;
+        struct sockaddr_in6 sa;
+        memset(&sa, 0, sizeof sa);
+        memcpy(&sa.sin6_addr, inAddress, 16);
+        sa.sin6_family = AF_INET6;
+        sa.sin6_port = port;
+
+        // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-bind
+        int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
+
+        if (bindResult == SOCKET_ERROR)
+        {
+            *outBindError = WSAGetLastError();
+            // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-closesocket
+            closesocket(s);
+            s = INVALID_SOCKET;
+        }
     }
 
-    memcpy(outSocket, &s, sizeof s);
+    setSocket(outSocket, s);
 }
 
 int jawboneGetV4SocketName(
@@ -202,7 +237,7 @@ int jawboneSendToV4(
         (const struct sockaddr *)&sa,
         sizeof sa);
 
-    *outErrorCode = sendResult == -1 ? WSAGetLastError() : 0;
+    *outErrorCode = sendResult == SOCKET_ERROR ? WSAGetLastError() : 0;
     return sendResult;
 }
 
@@ -231,7 +266,7 @@ int jawboneSendToV6(
         (const struct sockaddr *)&sa,
         sizeof sa);
 
-    *outErrorCode = sendResult == -1 ? WSAGetLastError() : 0;
+    *outErrorCode = sendResult == SOCKET_ERROR ? WSAGetLastError() : 0;
     return sendResult;
 }
 
