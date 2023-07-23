@@ -25,7 +25,7 @@ static void setSocket(void* p, SOCKET s)
 
 int jawboneGetVersion()
 {
-    return 2;
+    return 3;
 }
 
 int jawboneStartNetworking()
@@ -53,9 +53,11 @@ void jawboneCreateAndBindUdpV4Socket(
     int flags,
     void *outSocket,
     int *outSocketError,
+    int *outSetSocketOptionError,
     int *outBindError)
 {
     *outSocketError = 0;
+    *outSetSocketOptionError = 0;
     *outBindError = 0;
 
     // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket
@@ -70,10 +72,15 @@ void jawboneCreateAndBindUdpV4Socket(
 
     {
         BOOL yes = FALSE;
-        //int setSocketOptionError =
-        setsockopt(
+        int setSocketOptionError = setsockopt(
             s, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
-        // TODO: Report error like v6 version.
+
+        if (setSocketOptionError == SOCKET_ERROR)
+        {
+            *outSetSocketOptionError = WSAGetLastError();
+            closesocket(s);
+            return;
+        }
     }
 
     if (flags & JawboneFlagBind)
@@ -136,11 +143,13 @@ void jawboneCreateAndBindUdpV6Socket(
 
     if (flags & JawboneFlagBind)
     {
+        // https://learn.microsoft.com/en-us/windows/win32/winsock/sockaddr-2
         struct sockaddr_in6 sa;
         memset(&sa, 0, sizeof sa);
         memcpy(&sa.sin6_addr, inAddress, 16);
         sa.sin6_family = AF_INET6;
         sa.sin6_port = port;
+        sa.sin6_scope_id = *((u_long *)inAddress + 4);
 
         // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-bind
         int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
@@ -200,13 +209,14 @@ int jawboneGetV6SocketName(
 
     if (result == SOCKET_ERROR)
     {
-        memset(outAddress, 0, 16);
+        memset(outAddress, 0, 20);
         *outPort = 0;
         return WSAGetLastError();
     }
     else
     {
         memcpy(outAddress, &sa.sin6_addr, 16);
+        *((u_long *)outAddress + 4) = sa.sin6_scope_id;
         *outPort = sa.sin6_port;
         return 0;
     }
@@ -256,6 +266,7 @@ int jawboneSendToV6(
     sa.sin6_family = AF_INET6;
     sa.sin6_port = port;
     memcpy(&sa.sin6_addr, inAddress, 16);
+    sa.sin6_scope_id = *((u_long *)inAddress + 4);
 
     // // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-sendto
     int sendResult = sendto(
@@ -371,6 +382,7 @@ int jawboneReceiveFromV6(
                 &addressLength);
 
             memcpy(outAddress, &sa.sin6_addr, 16);
+            *((u_long *)outAddress + 4) = sa.sin6_scope_id;
             *outPort = sa.sin6_port;
             *outErrorCode = result == -1 ? WSAGetLastError() : 0;
 
@@ -378,7 +390,7 @@ int jawboneReceiveFromV6(
         }
         else
         {
-            memset(outAddress, 0, 16);
+            memset(outAddress, 0, 20);
             *outPort = 0;
             *outErrorCode = 0;
             return 0;
@@ -386,7 +398,7 @@ int jawboneReceiveFromV6(
     }
     else
     {
-        memset(outAddress, 0, 16);
+        memset(outAddress, 0, 20);
         *outPort = 0;
 
         if (pollResult == -1)
@@ -475,7 +487,8 @@ int jawboneGetAddressInfo(
             {
                 struct sockaddr_in6 *addr = (struct sockaddr_in6 *)ai->ai_addr;
                 memcpy(currentV6, &addr->sin6_addr, 16);
-                memcpy(currentV6 + 16, &addr->sin6_port, 2);
+                memcpy(currentV6 + 16, &addr->sin6_scope_id, 4);
+                memcpy(currentV6 + 20, &addr->sin6_port, 2);
                 currentV6 += sizeV6;
                 ++countV6;
             }

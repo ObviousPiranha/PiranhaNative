@@ -1,11 +1,7 @@
 #ifndef PIRANHA_NET_H
 #define PIRANHA_NET_H
 
-#ifdef JawboneWindows
-#define JawboneExport __declspec(dllexport)
-#else
-#define JawboneExport
-#endif
+#include "../piranha-export.h"
 
 #define JawboneFlagReuse 1
 #define JawboneFlagBind 2
@@ -20,6 +16,7 @@ JawboneExport void jawboneCreateAndBindUdpV4Socket(
     int flags,
     void *outSocket,
     int *outSocketError,
+    int *outSetSocketOptionError,
     int *outBindError);
 JawboneExport void jawboneCreateAndBindUdpV6Socket(
     const void *inAddress,

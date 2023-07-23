@@ -75,7 +75,11 @@
 #define STB_VORBIS_INCLUDE_STB_VORBIS_H
 
 #ifndef JawboneStbvExport
+#ifdef JawboneWindows
 #define JawboneStbvExport __declspec(dllexport)
+#else
+#define JawboneStbvExport extern
+#endif
 #endif
 
 #if defined(STB_VORBIS_NO_CRT) && !defined(STB_VORBIS_NO_STDIO)

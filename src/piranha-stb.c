@@ -1,8 +1,8 @@
-#ifdef JawboneWindows
-#define STBIDEF __declspec(dllexport)
-#define STBIWDEF __declspec(dllexport)
-//#define STBTT_DEF __declspec(dllexport)
-#endif
+#include "piranha-export.h"
+
+#define STBIDEF JawboneExport
+#define STBIWDEF JawboneExport
+//#define STBTT_DEF JawboneExport
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION

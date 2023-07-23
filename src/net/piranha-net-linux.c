@@ -24,7 +24,7 @@ static void setSocket(void* p, int s)
 
 int jawboneGetVersion()
 {
-    return 2;
+    return 3;
 }
 
 int jawboneStartNetworking()
@@ -42,9 +42,11 @@ void jawboneCreateAndBindUdpV4Socket(
     int flags,
     void *outSocket,
     int *outSocketError,
+    int *outSetSocketOptionError,
     int *outBindError)
 {
     *outSocketError = 0;
+    *outSetSocketOptionError = 0;
     *outBindError = 0;
 
     struct sockaddr_in sa;
@@ -118,6 +120,7 @@ void jawboneCreateAndBindUdpV6Socket(
         memcpy(&sa.sin6_addr, inAddress, 16);
         sa.sin6_family = AF_INET6;
         sa.sin6_port = port;
+        sa.sin6_scope_id = *((uint32_t *)inAddress + 4);
 
         // https://man7.org/linux/man-pages/man2/bind.2.html
         int bindResult = bind(s, (struct sockaddr *)&sa, sizeof sa);
@@ -175,13 +178,14 @@ int jawboneGetV6SocketName(
 
     if (result)
     {
-        memset(outAddress, 0, 16);
+        memset(outAddress, 0, 20);
         *outPort = 0;
         return errno;
     }
     else
     {
         memcpy(outAddress, &sa.sin6_addr, 16);
+        *((uint32_t *)outAddress + 4) = sa.sin6_scope_id;
         *outPort = sa.sin6_port;
         return 0;
     }
@@ -229,6 +233,7 @@ int jawboneSendToV6(
     sa.sin6_family = AF_INET6;
     sa.sin6_port = port;
     memcpy(&sa.sin6_addr, inAddress, 16);
+    sa.sin6_scope_id = *((uint32_t *)inAddress + 4);
 
     // https://man7.org/linux/man-pages/man2/sendto.2.html
     int sendResult = sendto(
@@ -339,6 +344,7 @@ int jawboneReceiveFromV6(
                 &addressLength);
 
             memcpy(outAddress, &sa.sin6_addr, 16);
+            *((uint32_t *)outAddress + 4) = sa.sin6_scope_id;
             *outPort = sa.sin6_port;
             *outErrorCode = result == -1 ? errno : 0;
 
@@ -346,7 +352,7 @@ int jawboneReceiveFromV6(
         }
         else
         {
-            memset(outAddress, 0, 16);
+            memset(outAddress, 0, 20);
             *outPort = 0;
             *outErrorCode = 0;
             return 0;
@@ -354,7 +360,7 @@ int jawboneReceiveFromV6(
     }
     else
     {
-        memset(outAddress, 0, 16);
+        memset(outAddress, 0, 20);
         *outPort = 0;
 
         if (pollResult == -1)
@@ -440,7 +446,8 @@ int jawboneGetAddressInfo(
             {
                 struct sockaddr_in6 *addr = (struct sockaddr_in6 *)ai->ai_addr;
                 memcpy(currentV6, &addr->sin6_addr, 16);
-                memcpy(currentV6 + 16, &addr->sin6_port, 2);
+                memcpy(currentV6 + 16, &addr->sin6_scope_id, 4);
+                memcpy(currentV6 + 20, &addr->sin6_port, 2);
                 currentV6 += sizeV6;
                 ++countV6;
             }
