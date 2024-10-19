@@ -3,14 +3,16 @@ ifeq ($(OS),Windows_NT)
 endif
 
 SOURCE = jawbone.c jawbone-stb.c stb_vorbis.c jawbone-sqlite3.c
-
 CFLAGS += -shared -fPIC -O3 -DNDEBUG
+
+# https://stackoverflow.com/a/14777895/264712
 ifeq ($(OS),Windows_NT)
 	TARGET = JawboneNative.dll
 	LDFLAGS += -static
 	LDLIBS += -lws2_32
 else
-	ifeq ($(OS),Darwin)
+	uname_S := $(shell uname -s)
+	ifeq ($(uname_S),Darwin)
 		TARGET = libJawboneNative.dylib
 	else
 		TARGET = libJawboneNative.so
