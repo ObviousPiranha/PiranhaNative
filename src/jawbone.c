@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "piranha-export.h"
+#include "jawbone-export.h"
 
-JawboneExport void piranha_test_matrix(const float* f)
+JawboneExport void jawbone_test_matrix(const float* f)
 {
     int i;
 
@@ -13,17 +13,17 @@ JawboneExport void piranha_test_matrix(const float* f)
     fflush(stdout);
 }
 
-JawboneExport void piranha_free(void* ptr)
+JawboneExport void jawbone_free(void* ptr)
 {
     free(ptr);
 }
 
-JawboneExport const char* piranha_get_string()
+JawboneExport const char* jawbone_get_string()
 {
     return "Greetings, from C!";
 }
 
-JawboneExport const char* piranha_get_null()
+JawboneExport const char* jawbone_get_null()
 {
     return 0;
 }

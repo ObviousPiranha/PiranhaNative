@@ -1,4 +1,4 @@
-# PiranhaNative
+# JawboneNative
 Native libraries for Jawbone
 
 ## Future Options
@@ -14,7 +14,7 @@ For macOS, install `clang` (Xcode dev tools).
 
 For Linux, install `gcc` or `clang` from the package manager.
 
-Run `make` in the folder `src` to generate `PiranhaNative.dll`.
+Run `make` in the folder `src` to generate `JawboneNative.dll`, `libJawboneNative.dylib`, or `libJawboneNative.so`.
 
 ### Windows Alternative
 
@@ -22,4 +22,4 @@ Install the C++ desktop SDK using the Visual Studio Installer.
 
 Locate and run `vcvars64.bat` to configure shell environment.
 
-Run `build-win32.cmd` in the folder `src` to generate `PiranhaNative.dll`.
+Run `build-win32.cmd` in the folder `src` to generate `JawboneNative.dll`.

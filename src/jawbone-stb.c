@@ -1,4 +1,4 @@
-#include "piranha-export.h"
+#include "jawbone-export.h"
 
 #define STBIDEF JawboneExport
 #define STBIWDEF JawboneExport
